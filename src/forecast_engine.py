@@ -91,7 +91,7 @@ def build(args):
     residuals=[]
     for val in train:
         tr=[s for s in train if s!=val]
-        pp0,_,ppS,_=components(nat,st,states,val,args.cutoff,tr); pp=combine(pp0,ppS,args.gate_lambda,args.gate_start)
+        pp0,_,ppS,_=components(nat,st,states,val,args.cutoff,tr); pp=combine(pp0,ppS,args.gate_lambda,args.gate_start,args.cutoff)
         yy=nat[nat.season==val].sort_values('epi_week_of_season').cases.values[args.cutoff:]
         residuals.extend(np.log1p(yy)-np.log1p(np.maximum(pp,0)))
     qs=np.quantile(np.asarray(residuals),QLEVELS); out=[]
