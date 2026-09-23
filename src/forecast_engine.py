@@ -60,8 +60,10 @@ def components(nat,st,states,target,c,train):
     y=nat[nat.season==target].sort_values('epi_week_of_season').cases.values
     scale=np.median(y[1:c]/np.maximum(obs[1:],1)) if c>1 else 1.0
     return p0,P,ps*scale,props
-def combine(p0,ps,lam=.4,start=16):
-    gate=lam/(1+np.exp(-(np.arange(len(p0))-start)/4))
+def combine(p0,ps,lam=.4,start=16,week_offset=0):
+    """Blend national and spatial components using absolute epi-week coordinates."""
+    weeks=np.arange(len(p0))+week_offset
+    gate=lam/(1+np.exp(-(weeks-start)/4))
     return np.maximum(np.exp((1-gate)*np.log1p(np.maximum(p0,0))+gate*np.log1p(np.maximum(ps,0)))-1,0)
 
 def build(args):
@@ -71,7 +73,7 @@ def build(args):
     if args.target_season not in SEAS: raise ValueError(f'target season must be one of {SEAS}')
     train=[s for s in SEAS if s!=args.target_season]
     p0,P,ps,props=components(nat,st,states,args.target_season,args.cutoff,train)
-    pred_cases=combine(p0,ps,args.gate_lambda,args.gate_start)
+    pred_cases=combine(p0,ps,args.gate_lambda,args.gate_start,args.cutoff)
     gate=args.gate_lambda/(1+np.exp(-(np.arange(args.cutoff,52)-args.gate_start)/4))
     local=np.maximum(np.exp((1-gate[None,:])*np.log1p(np.maximum(p0[None,:],0))+gate[None,:]*np.log1p(np.maximum(P,0)))-1,0)
     weeks=nat[nat.season==args.target_season].sort_values('epi_week_of_season')
