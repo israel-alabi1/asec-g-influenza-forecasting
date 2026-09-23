@@ -1,134 +1,87 @@
-# Research-Code Audit
+# Corrected Reproducibility Audit
 
 **Audit date:** 2026-09-23  
-**Repository:** ASEC-G Influenza Forecasting  
-**Scope:** source implementation currently on `main`, model specification, validation protocol, dependency manifest and repository structure.
+**Target seasons:** 2023/2024, 2024/2025, 2025/2026  
+**Forecast origins:** weeks 10, 12, 15, 18 and 20  
+**Gate:** lambda=0.40, start=16  
+**Scope:** corrected GitHub ASEC-G engine
 
-## Executive assessment
+## Executive result
 
-**Status: CONDITIONAL — suitable for continued research development, not yet publication-ready.**
+**The corrected engine is deterministic and passes the target-season future-value mutation test. The national development MAE reproduces the previously observed approximately 301,098 value, but several other metrics differ materially from the older Pass4J/Pass6 scorecards.**
 
-The repository has a coherent high-level ASEC-G concept and a useful competition-development implementation, but the current source code does not yet fully implement the mathematical specification stated in `docs/asec_model_spec.md`, and several uncertainty, validation and reproducibility components need tightening before a manuscript-level release.
+This means the GitHub implementation should **not** currently be described as an exact reproduction of the frozen Pass6D package.
 
-## Findings
+## Corrected national scorecard
 
-### R1 — High: model specification and implementation are not equivalent
+| Metric | Corrected result |
+|---|---:|
+| National case MAE | 301,097.7 |
+| National case RMSE | 766,041.0 |
+| Peak-week MAE | 0.733 weeks |
+| Peak-incidence relative error | 27.57% |
+| Cumulative-case relative error | 41.37% |
+| Central 80% coverage | 79.24% |
+| Central 90% coverage | 88.29% |
+| Interval score, central 80% | 2.911M |
+| Interval score, central 90% | 6.185M |
 
-The specification states
+The MAE agrees with the earlier approximately 301,098 development result. The RMSE and probabilistic metrics should be treated as the authoritative results for the current GitHub implementation until reconciled against the frozen package.
 
-`log(1 + Y[s,t]) = G(t - tau[s]) + b[s] + A[s] B2(t) + epsilon[s,t]`.
+## Additional corrected results
 
-The current implementation has:
-- a smoothed national clock `G`;
-- a phase shift and state-specific level offset;
-- a secondary propensity term;
-- a late spatial gate;
+| Component | Result |
+|---|---:|
+| State case MAE | 79,378.3 |
+| State hospitalisation MAE | 1,132.2 |
+| State death MAE | 106.9 |
 
-but it does not explicitly estimate a separate `b[s]` parameter, and the implemented secondary-wave term is constructed as a multiplicative exponential adjustment to the shifted clock. The specification should therefore be rewritten to exactly match the code, or the code should be refactored to implement the stated equation.
+These are materially different from the earlier Pass4/Pass6 scorecard. This is evidence that the current GitHub engine is a simplified implementation rather than a byte-for-byte mirror of the frozen competition package.
 
-**Action:** resolve the specification/implementation mismatch before publication.
+## Reproducibility checks
 
-### R2 — High: probabilistic uncertainty is not yet a fully calibrated predictive model
+### Determinism
+**PASS.**
 
-Case quantiles are generated from pooled national log residuals collected from only two training seasons in each leave-one-season-out calculation. The same residual quantiles are then applied to national, regional and state forecasts.
+Repeated execution of every one of the 15 season/cutoff folds produced identical numerical outputs.
 
-This is a reasonable provisional uncertainty heuristic, but it is not sufficient evidence for spatially calibrated predictive intervals. The hospitalisation and death intervals use fixed multiplicative spreads (0.44 and 0.60), which are not learned from an explicit out-of-sample calibration procedure.
+### Future-value mutation
+**PASS.**
 
-**Action:** implement an explicit calibration procedure and report WIS/interval scores and coverage by outcome, horizon, forecast origin and geography.
+For every season and cutoff, target-season values after the cutoff were heavily perturbed and the forecasts were recomputed.
 
-### R3 — High: the current repository is incomplete relative to the frozen local research package
+Maximum changes:
+- national case forecasts: 0.0
+- state case forecasts: 0.0
+- case predictive quantiles: 0.0
 
-Several source files expected from the frozen package are absent from GitHub `main`, including:
-- `src/final_model_development.py`
-- `src/run_development_validation.py`
-- `src/build_final_report.py`
-- `src/pass6c_audit.py`
+This supports the absence of target-season future-case leakage in the audited case-forecast path.
 
-The validation artifacts, figures and final report also need to be mirrored before this can be considered a complete reproducibility repository.
+### North/South aggregation
+**PASS.**
 
-**Action:** complete the repository mirror from the frozen package after verifying each file.
+North and South state forecasts sum to the complete state-level forecast to floating-point precision.
 
-### R4 — Medium: national/state aggregation is structurally asymmetric
+Maximum absolute discrepancy: 2.98e-08.
 
-National cases are generated by blending a national ASEC-G forecast with the summed state component. Hospitalisations and deaths are aggregated from state forecasts. Consequently, the three outcomes do not share exactly the same aggregation construction.
+### Forecast coverage
+All 15 rolling-origin folds were evaluated.
 
-This may be scientifically defensible, but it must be explicit and tested because a publication reader may reasonably expect national forecasts to equal the aggregation of state forecasts.
+## Important reconciliation finding
 
-**Action:** add an aggregation consistency test and document the intended hierarchy.
+The current GitHub implementation should **not** yet be used to claim the historical Pass6D scorecard wholesale.
 
-### R5 — Medium: the uncertainty-inflation rule is tied to cutoff 20
+The repository currently lacks several files from the frozen local research package, and the executable engine on GitHub produces materially different state/outcome metrics from the earlier frozen scorecard.
 
-The implementation scales uncertainty using:
+Therefore the publication workflow must now choose between:
 
-`1 + uncertainty_inflation * max(0, (20-cutoff)/10)`.
+1. **reconstructing the exact frozen Pass6D implementation on GitHub**, followed by reproduction of its original scorecard; or
+2. **declaring the current GitHub engine the new canonical ASEC-G implementation**, then updating the report, validation artifacts and manuscript around its corrected results.
 
-Thus the default inflation becomes zero at cutoff 20 and changes deterministically with cutoff rather than being estimated from horizon-specific calibration evidence.
+The first option is preferable for competition provenance; the second is appropriate only if the implementation differences are intentional methodological changes.
 
-**Action:** replace this heuristic with horizon- or origin-specific empirical calibration, or clearly label it as a provisional sensitivity heuristic.
+## Release decision
 
-### R6 — Medium: validation and production code are not yet cleanly separated
+**No publication release tag yet.**
 
-The production engine contains development-specific assumptions such as the fixed three-season list and fixed cutoff-oriented uncertainty logic. This makes the code less reusable and increases the risk that competition-specific choices are mistaken for general model definition.
-
-**Action:** move data/experiment configuration into a small configuration layer and keep the model engine parameterized.
-
-### R7 — Medium: dependency versions are unspecified
-
-`requirements.txt` lists package names but no versions. Exact reproducibility therefore depends on the external package state at installation time.
-
-**Action:** add a tested version-pinned environment specification, preferably alongside a lightweight requirements file for convenience.
-
-### R8 — Medium: automated testing is too narrow for a research release
-
-The current integrity checker tests structural properties of a forecast CSV but does not test:
-- deterministic model outputs;
-- future-value mutation invariance;
-- state-to-region aggregation;
-- target-season isolation;
-- monotonicity/validity across all outcome-generation paths;
-- expected forecast horizon;
-- known edge cases for small cutoffs.
-
-**Action:** add a `tests/` suite using small synthetic fixtures and explicit leakage tests.
-
-### R9 — Medium: the model's secondary-wave target needs stronger justification
-
-`fit_prop` trains on a ratio involving weeks 24–32 versus the first 24 weeks. That is appropriate as a supervised development target when the entire training season is available, but the repository should explicitly distinguish this historical-label construction from the information available at prediction time.
-
-**Action:** document the supervised target construction and demonstrate that target-season features use only weeks `<= cutoff`.
-
-### R10 — Low: code readability is below publication/research-package standard
-
-The current engine uses compressed one-line functions and dense statements. This is executable, but it makes scientific auditing unnecessarily difficult.
-
-**Action:** expand functions, add type hints/docstrings, name intermediate quantities clearly, and use a consistent formatter/linter.
-
-## Positive findings
-
-- No external epidemiological data are required by the engine.
-- Target-season predictions use the observed target prefix for state-level features.
-- Training-season future outcomes are used only for historical supervised fitting/calibration, not for target-season feature construction.
-- Quantile ordering and non-negativity are explicitly checked by the integrity utility.
-- The repository clearly labels provisional competition schema and development results.
-- The README appropriately avoids presenting same-fold parameter-search performance as an independent test result.
-
-## Publication gate
-
-Before a research release is labelled `v1.0.0`, the following should be completed:
-
-1. Align equations and implementation exactly.
-2. Complete the frozen-package mirror.
-3. Add deterministic and leakage tests.
-4. Add rigorous ablations.
-5. Add baseline comparisons under identical information sets.
-6. Rework uncertainty calibration.
-7. Pin the software environment.
-8. Generate all report figures/tables from one reproducible pipeline.
-9. Add a clear experiment manifest containing cutoff, gate parameters and calibration settings.
-10. Run a final clean-environment reproduction from the public repository.
-
-## Reference standard
-
-For research forecasting repositories, reproducibility is strongest when code, environment, retrospective outputs and analysis are linked through an executable workflow. Established influenza forecasting repositories use this pattern; for example, Reich Lab's flusion separates code, retrospective outputs and submission outputs and documents both local and containerized execution. citeturn0search1
-
-The current ASEC-G repository is moving toward that structure but should not claim equivalent publication-level reproducibility until the missing artifacts and tests are added.
+The repository has passed the core reproducibility tests for the current engine, but the implementation/provenance reconciliation must be completed before the repository can honestly claim to reproduce the frozen competition package.
