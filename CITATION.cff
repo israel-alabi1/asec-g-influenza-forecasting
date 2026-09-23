@@ -5,7 +5,6 @@ type: software
 authors:
   - family-names: Alabi
     given-names: Israel Oluwamayomikun
-    orcid: "https://orcid.org/"
 repository-code: "https://github.com/israel-alabi1/asec-g-influenza-forecasting"
 url: "https://github.com/israel-alabi1/asec-g-influenza-forecasting"
 license: MIT
